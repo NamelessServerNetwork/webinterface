@@ -1,0 +1,43 @@
+# authentication / permissions
+-1: no valid username given.
+-2: no valind password given.
+
+-3: password not matching.
+
+-4: username not found.
+-5: user mail address not found.
+
+-10: session not found.
+-11: session expired.
+-12: invalid session token.
+-13: can not verify session token.
+
+-50: cant set permission.
+
+# singin up
+-101: username already taken.
+-102: mail address already taken.
+
+# internal user class
+-201: no valid userID given.
+-202: user not found by userID.
+
+# critical db error
+-301: multiple userers with same ID existing.
+-302: multiple userers with same username existing.
+-303: multiple userers with same mail address existing.
+
+# site / action execution
+-404: site not found.
+-405: error while executing site script.
+
+# http communication
+-1001: no valid request-format given.
+-1002: no valid response-format given.
+-1005: expectet request-format not specified.
+-1006: expectet response-format not specified.
+-1011: request-formatter returned an error.
+-1012: response-formatter returned an error.
+-1013: request-formatter crashed.
+-1014: response-formatter crashed.
+

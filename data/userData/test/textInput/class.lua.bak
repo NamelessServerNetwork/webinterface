@@ -1,0 +1,257 @@
+local UT = require("UT")
+local getch = require("getch")
+
+local key_table = {
+	[10] = "enter",
+	[9] = "tab",
+	[127] = "backspace",
+	[27] = {
+		[27] = "escape",
+		[91] = {
+			[65] = "up",
+			[66] = "down",
+			[67] = "right",
+			[68] = "left",
+			[70] = "end",
+			[72] = "pos1",
+			[50] = {
+				[126] = "insert"
+			},
+			[51] = {
+				[126] = "delete"
+			},
+			[53] = {
+				[126] = "pageup"
+			},
+			[54] = {
+				[126] = "pagedown"
+			}
+		}
+	}
+}
+
+local function get_mbs(callback, key_table, max_i, i)
+	assert(type(key_table)=="table")
+	i = tonumber(i) or 1
+	max_i = tonumber(max_i) or 10
+	local key_code = callback()
+	if i>max_i then
+		return key_code, false
+	end
+	local key_resolved = key_table[key_code]
+	if type(key_resolved) == "function" then
+		key_resolved = key_resolved(callback, key_code)
+	end
+	if type(key_resolved) == "table" then
+		-- we're in a multibyte sequence, get more characters recursively(with maximum limit)
+		return get_mbs(callback, key_resolved, max_i, i+1)
+	elseif key_resolved then
+		-- we resolved a multibyte sequence
+		return key_code, key_resolved
+	else
+		-- Not in a multibyte sequence
+		return key_code
+	end
+end
+
+--===== TextInput =====--
+TextInput = {}
+TextInput.__index = TextInput
+
+function TextInput.new(args) --posX == [int], posY == [int], size == [int], args == {colors == [numTable], listedFunction == [function()], managed == [{update == [bool], draw == [bool], stop == [bool]}]}
+
+	local this = setmetatable({}, TextInput)
+	this.size = UT.parseArgs(args.s, args.size)
+	this.listedFunction = args.listedFunction or function() end
+	this.autoCompFunction = args.autoCompFunction or function() end
+	
+	this.cfg_keepText = false
+	this.cfg_maxHistoryLength = -1
+	this.cfg_hiddenText = UT.parseArgs(args.hiddenText, false)
+	
+	this.cfg_inputMap = {back = {14}, left = {203}, right = {205}, up = {200}, down = {208}, enter = {28}, pos1 = {199}, endKey = {207}, del = {211}, autoComplete = {15}, forbidden = {}, allowed = {}}
+	
+	this.autoComplete = args.autoComplete or {}
+	
+	this.status = false
+	this.text = ""
+	this.stringPosition = 0
+	this.cursorPosition = 1
+	this.cursorPTime = 0
+	this.history = {}
+	this.historyPosition = -1
+	this.userInput = ""
+	this.autoCompBase = "" --for auto complete
+	this.autoCompPos = 1
+	
+	return this
+end
+
+function TextInput.update(this, code)
+	local inputCheck = UT.inputCheck
+	local function MoveCursor(c)
+		if 0 +c > 0 then
+			if this.cursorPosition +c > this.size and #this.text -this.stringPosition >= this.size then
+				this.stringPosition = this.stringPosition +(c - (this.size - this.cursorPosition))
+				this.cursorPosition = this.size
+			elseif this.cursorPosition < this.size and this.cursorPosition <= #this.text then
+				this.cursorPosition = this.cursorPosition +c
+			end
+		else
+			if this.cursorPosition +c < 1 and this.stringPosition > 0 then
+				this.stringPosition = this.stringPosition +c
+				this.cursorPosition = 1
+			elseif this.cursorPosition > 1 then
+				this.cursorPosition = this.cursorPosition +c
+			end
+		end
+	end
+	local function RSC() --reset cursor
+		this.cursorPosition = 1
+		this.stringPosition = 0
+	end
+	local m = this.cfg_inputMap
+	
+	local key = code --still needed?
+	
+	print(get_mbs(getch.blocking, key_table))
+		
+	if key ~= nil then			
+		if inputCheck(m.enter, code) then
+			if #this.history >= this.cfg_maxHistoryLength and this.cfg_maxHistoryLength ~= -1 and this.cfg_maxHistoryLength ~= 0 then
+				for c = 1, this.cfg_maxHistoryLength, 1 do
+					this.history[c] = this.history[c +1]
+				end
+				this.history[this.cfg_maxHistoryLength] = this.text
+			elseif this.cfg_maxHistoryLength ~= 0 then
+				table.insert(this.history, this.text)
+			end
+			this.historyPosition = -1
+			local success, errorMsg = xpcall(this.listedFunction, debug.traceback, this)
+			if success == false then
+				--this.ocui.onError(this, errorMsg)
+			end
+			if this.cfg_keepText == false then
+				this.text = ""
+				this.autoCompBase = this.text
+				RSC()
+			end
+		elseif inputCheck(m.left, code) then
+			MoveCursor(-1)
+		elseif inputCheck(m.right, code) then
+			MoveCursor(1)
+		elseif inputCheck(m.pos1, code) then
+			RSC()
+		elseif inputCheck(m.endKey, code) then
+			RSC()
+			MoveCursor(#this.text)
+		elseif inputCheck(m.back, code) then
+			if #this.text > 0 and this.cursorPosition > 1 then
+				local ct = UT.getChars(this.text)
+				table.remove(ct, this.cursorPosition + this.stringPosition -1)
+				this.text = UT.makeString(ct)
+				if #this.text >= this.size -1 then
+					this.stringPosition = this.stringPosition -1
+				else
+					MoveCursor(-1)
+				end
+				this.autoCompBase = this.text
+			end
+		elseif inputCheck(m.del, code) then
+			if #this.text - (this.cursorPosition + this.stringPosition) >= 0 then
+				local ct = UT.getChars(this.text)
+				table.remove(ct, this.cursorPosition + this.stringPosition)
+				this.text = UT.makeString(ct)
+				this.autoCompBase = this.text
+			end
+		elseif inputCheck(m.up, code) then
+			if this.historyPosition == -1 and this.cfg_maxHistoryLength ~= 0 and #this.history > 0 then
+				this.userInput = this.text
+				this.historyPosition = #this.history
+				this.text = this.history[this.historyPosition]
+			elseif this.historyPosition > 1 then
+				this.historyPosition = this.historyPosition -1
+				this.text = this.history[this.historyPosition]
+			end
+			RSC()
+			MoveCursor(#this.text)
+			this.autoCompBase = this.text
+		elseif inputCheck(m.down, code) then
+			if this.historyPosition < #this.history and this.historyPosition ~= -1 then
+				this.historyPosition = this.historyPosition +1
+				this.text = this.history[this.historyPosition]
+			elseif #this.history > 0 then
+				this.historyPosition = -1
+				this.text = this.userInput
+			end
+			RSC()
+			MoveCursor(#this.text)
+			this.autoCompBase = this.text
+		elseif inputCheck(m.autoComplete, code) then
+			local clear = true
+			
+			local success, errorMsg = xpcall(this.autoCompFunction, debug.traceback, this)
+			if success == false then
+				--this.ocui.onError(this, errorMsg)
+			end
+			
+			if this.autoCompBase ~= string.sub(this.text, 0, #this.autoCompBase) or this.autoCompBase == "" then
+				this.autoCompBase = this.text
+			end
+			for i = this.autoCompPos, #this.autoComplete do
+				this.autoCompPos = i +1
+				--print(string.sub(this.autoComplete[i], 0, #this.autoCompBase))
+				if this.autoCompBase == string.sub(this.autoComplete[i], 0, #this.autoCompBase) then
+					this.text = this.autoComplete[i]
+					clear = false
+					break
+				end
+			end
+			if this.autoCompPos > #this.autoComplete and clear and #this.autoComplete > 0 then
+				this.autoCompPos = 1
+				this.text = this.autoCompBase
+			end
+			RSC()
+			MoveCursor(#this.text)
+		elseif key ~= 0 and inputCheck(m.forbidden, code) == false and #m.allowed == 0 or inputCheck(m.allowed, code) then
+			--this.text = this.text .. string.char(key)
+			local ct = UT.getChars(this.text)
+			table.insert(ct, this.cursorPosition +this.stringPosition, string.char(key))
+			this.text = UT.makeString(ct)
+			MoveCursor(1)
+			this.autoCompBase = this.text
+		end
+	end
+end
+
+function TextInput.get(this)
+	local function generateTexture(t)
+		return {textureFormat = "OCGLT", version = "v0.1", drawCalls = {{"f", t[1]}, {"b", t[2]}, {0, 0, t[3]}}}
+	end
+	local text = this.text
+	if this.cfg_hiddenText then
+		text = UT.fillString("", #this.text, "*")
+	end
+	
+	for c = #this.text, this.size -1, 1 do
+		text = text .. " "
+	end
+	if #this.text > this.size -1 then
+		local tm = #this.text - (this.size -1)
+		tm = tm - this.stringPosition 
+		if tm > 0 then
+			text = string.sub(this.text, this.stringPosition +1, -tm)
+		else
+			text = string.sub(this.text, this.stringPosition +1)
+			text = text .. " "
+		end
+	end
+	
+	--draw text
+	return text, this.cursorPosition
+end
+
+return TextInput
+
+
+

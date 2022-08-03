@@ -1,0 +1,24 @@
+used thread channels:
+	THREAD_REGISTRATION:
+	ACTIVE_THREADS:
+	
+	GET_THREAD_ID:
+	
+	SHARED_REQUEST:
+	
+	SHARED_RESPONSE#[ID]:
+	
+	PROGRAM_IS_RUNNING:
+	
+	EVENT_QUEUE_MAIN:
+	EVENT_QUEUE_THREAD#[ID]:
+	EVENT_LISTENER_REGISTRATION:
+
+loadfile:
+	uses "data/" as default path after init
+
+_G:
+	"lua/core/debug.lua" is the only script that is allowed to change _G metatables
+
+shared: 
+	you should not use local references to a shared table. the reference will not get updated if the shared table changes the data type.

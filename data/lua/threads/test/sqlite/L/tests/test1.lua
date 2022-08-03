@@ -1,0 +1,3 @@
+local conf = ...
+
+log("test1", conf.tests)

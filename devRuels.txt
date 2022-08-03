@@ -1,0 +1,6 @@
+Known bugs:
+	io.stdout as well as io.stderr input is printet twice to the terminal.
+
+
+_G:
+	"lua/core/debug.lua" is the only script that is allowed to change _G metatables

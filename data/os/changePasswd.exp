@@ -1,0 +1,46 @@
+#!/usr/bin/expect
+
+#error codes
+# 1 = user dont exists
+# 2 = wrong current passwd
+# 3 = passwords do not match
+# 10 = something unexpected happened
+
+
+set timeout -1
+
+set threadID [lindex $argv 0]
+
+#spawn echo $env(DAMS_USER_$threadID)
+
+match_max 100000
+
+spawn sudo runuser $env(DAMS_USER_$threadID) -c "passwd"
+
+expect {
+    "runuser:" {exit 1}
+
+    "Current password:" {
+        send -- $env(DAMS_PASSWD_$threadID)\r
+    }
+}
+
+expect {
+    "passwd:" {exit 2}
+
+    "New password:" {
+        send -- $env(DAMS_NEWPASSWD1_$threadID)\r
+    }
+}
+
+expect "Retype new password:"
+send -- $env(DAMS_NEWPASSWD2_$threadID)\r
+
+expect {
+    "passwords do not match." {exit 3}
+
+    "passwd: password updated successfully" {exit 0}
+}
+
+
+exit 10

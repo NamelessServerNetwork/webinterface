@@ -1,0 +1,22 @@
+#!/usr/bin/expect
+
+set timeout -1
+set var1 [lindex $argv 0]
+spawn ./test.lua var1
+match_max 100000
+
+
+expect {
+    "output" {
+        send -- "input\r"
+    }
+
+    "nein" {
+        send -- "schade\r"
+        exit 1
+    }
+}
+
+expect "done"
+
+exit 0

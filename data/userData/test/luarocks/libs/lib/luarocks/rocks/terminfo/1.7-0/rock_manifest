@@ -1,0 +1,15 @@
+rock_manifest = {
+   doc = {
+      ['terminfo.html'] = "902d858074765ecee75c1a8d46b3464e"
+   },
+   lib = {
+      ['C-terminfo.so'] = "dd26905308aded2367bd12b0f9869e02"
+   },
+   lua = {
+      ['terminfo.lua'] = "488051061c9d1a056d32bada0eb5e277"
+   },
+   ['terminfo-1.7-0.rockspec'] = "a96695852853774f63def3b668ef41dd",
+   test = {
+      ['test_ti.lua'] = "8fee0c0a62b13d8cd4772dffadf587ab"
+   }
+}

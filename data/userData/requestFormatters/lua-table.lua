@@ -1,0 +1,3 @@
+local rawRequestData = ...
+
+return env.lib.serialization.load(rawRequestData)
